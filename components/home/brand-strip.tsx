@@ -13,7 +13,10 @@ export function BrandStrip() {
             alt={brand.name}
             width={brand.width}
             height={brand.height}
-            className="h-5 w-auto sm:h-6 lg:h-8"
+            // The logo files are baked #FFFFFF for the black strip. The strip
+            // turns light in dark mode, so the monochrome artwork is inverted
+            // to black rather than shipping a second set of files.
+            className="h-5 w-auto invert-0 sm:h-6 lg:h-8 dark:invert"
           />
         ))}
       </div>

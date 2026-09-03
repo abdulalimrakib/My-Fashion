@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SearchField } from "@/components/layout/search-field";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { CloseIcon, MenuIcon } from "@/components/ui/icons";
 import { PRIMARY_NAV } from "@/lib/constants";
 
@@ -83,7 +84,7 @@ export function MobileNav({ isSignedIn }: Props) {
             aria-label="Close menu"
             tabIndex={-1}
             onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-ink/40"
+            className="absolute inset-0 bg-scrim"
           />
           <div
             ref={panelRef}
@@ -135,6 +136,9 @@ export function MobileNav({ isSignedIn }: Props) {
                   >
                     {isSignedIn ? "My account" : "Sign in"}
                   </Link>
+                </li>
+                <li>
+                  <ThemeToggle showLabel />
                 </li>
               </ul>
             </div>

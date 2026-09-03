@@ -3,15 +3,31 @@
 /* ---------------------------------------------------------------------------
    Design tokens
 
-   The SHOP.CO visual language is true black on white with a single grey fill;
-   it has no dark variant, so the palette is committed rather than duplicated
-   under `prefers-color-scheme`.
+   The SHOP.CO visual language is true black on white with a single grey fill.
+   Dark mode is a genuine inversion rather than a tint: `ink` and `surface`
+   swap roles, so the primary button stays "maximum contrast pill" in both
+   themes instead of becoming a grey box.
+
+   That inversion is why `on-ink` exists. `bg-ink` panels — the promo bar, the
+   primary button, the brand strip, the newsletter card — need a foreground
+   that flips with `ink`, and a literal `text-white` would vanish the moment
+   `ink` turned light. Anything painted on `bg-ink` uses `text-on-ink`.
+
+   Two tokens deliberately do *not* invert: `scrim` stays black in both themes
+   because a veil should always darken what it covers, and `star` is a brand
+   yellow that reads on either ground.
+
+   `[data-theme]` is written by next-themes (configured in `app/layout.tsx`),
+   which resolves `system` before it paints — so the value here is always
+   concrete, `light` or `dark`. That keeps the CSS free of a second, drifting
+   `prefers-color-scheme` branch.
    --------------------------------------------------------------------------- */
 
 @theme {
   --color-ink: #000000;
   --color-ink-muted: rgb(0 0 0 / 0.6);
   --color-ink-subtle: rgb(0 0 0 / 0.4);
+  --color-on-ink: #ffffff;
 
   --color-surface: #ffffff;
   --color-surface-muted: #f0f0f0;
@@ -22,12 +38,58 @@
 
   --color-sale: #ff3333;
   --color-sale-soft: #ffebeb;
+  --color-sale-on-ink: #ffebeb;
   --color-star: #ffc633;
   --color-positive: #01ab31;
+
+  --color-scrim: rgb(0 0 0 / 0.4);
 
   /* The reference layout switches at 400px, below Tailwind's smallest stop. */
   --breakpoint-xs: 25rem;
 }
+
+/* Unlayered, so these win over the `@layer theme` block Tailwind emits from
+   `@theme` above regardless of source order. */
+:root {
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Not pure white on pure black: at full contrast large text bleeds, so the
+     ends of the ramp are pulled in a little. */
+  --color-ink: #f2f2f3;
+  --color-ink-muted: rgb(255 255 255 / 0.68);
+  --color-ink-subtle: rgb(255 255 255 / 0.45);
+  --color-on-ink: #0e0e10;
+
+  --color-surface: #0e0e10;
+  /* `muted` sits a shade above `sunken`, mirroring #f0f0f0 vs #f2f0f1. */
+  --color-surface-muted: #1c1c20;
+  --color-surface-sunken: #17171a;
+
+  --color-line: rgb(255 255 255 / 0.14);
+  --color-line-strong: rgb(255 255 255 / 0.26);
+
+  /* #ff3333 only reaches ~4.3:1 on this surface; lightening restores it. */
+  --color-sale: #ff6b6b;
+  /* Opaque: `sale-soft` is a hover fill over product imagery, where a
+     translucent tint would let the photo show through. */
+  --color-sale-soft: #3f2224;
+  /* Read against `bg-ink`, which is light here — so this darkens as the rest
+     of the palette lightens. */
+  --color-sale-on-ink: #b3261e;
+  --color-star: #ffc633;
+  --color-positive: #3ddc84;
+
+  --color-scrim: rgb(0 0 0 / 0.6);
+}
+
+/* Lets the few genuinely theme-dependent exceptions opt in — chiefly the
+   monochrome brand logos, which are baked white and have to flip when the
+   strip behind them does. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
   --font-sans: var(--font-geist-sans);

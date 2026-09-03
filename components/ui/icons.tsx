@@ -111,16 +111,41 @@ export const MailIcon = (p: IconProps) => (
   </Icon>
 );
 
+/**
+ * The tick is drawn as a cut-out onto the page behind the badge, so it tracks
+ * `--color-surface` rather than a literal white that would strand on a dark
+ * ground once the badge fill lightens.
+ */
 export const VerifiedIcon = (p: IconProps) => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...p}>
     <path d="M12 1.8 14.6 4l3.4-.3.9 3.3 2.9 1.9-1.4 3.1 1.4 3.1-2.9 1.9-.9 3.3-3.4-.3L12 22.2 9.4 20l-3.4.3-.9-3.3-2.9-1.9L3.6 12 2.2 8.9l2.9-1.9.9-3.3L9.4 4Z" />
     <path
       d="m8.2 12.2 2.6 2.6 5-5"
       fill="none"
-      stroke="#fff"
+      stroke="var(--color-surface)"
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
   </svg>
+);
+
+export const SunIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="4.2" />
+    <path d="M12 2v2.2M12 19.8V22M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2 12h2.2M19.8 12H22M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6" />
+  </Icon>
+);
+
+export const MoonIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20.5 14.4A8.5 8.5 0 0 1 9.6 3.5a8.5 8.5 0 1 0 10.9 10.9Z" />
+  </Icon>
+);
+
+export const MonitorIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2.5" y="4" width="19" height="13" rx="2" />
+    <path d="M8.5 21h7M12 17v4" />
+  </Icon>
 );

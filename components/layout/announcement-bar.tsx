@@ -48,7 +48,7 @@ export function AnnouncementBar() {
   if (dismissed) return null;
 
   return (
-    <div className="bg-ink text-white">
+    <div className="bg-ink text-on-ink">
       <div className="container-page flex items-center justify-center gap-4 py-2.5">
         <p className="text-center text-xs sm:text-sm">
           Use promo code{" "}
@@ -61,7 +61,7 @@ export function AnnouncementBar() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss announcement"
-          className="shrink-0 rounded-full p-1 hover:bg-white/15"
+          className="shrink-0 rounded-full p-1 hover:bg-on-ink/15"
         >
           <CloseIcon className="h-4 w-4" />
         </button>

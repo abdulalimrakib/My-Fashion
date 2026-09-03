@@ -41,7 +41,7 @@ export function NewsletterForm() {
         <p
           id="newsletter-status"
           role="status"
-          className={state.ok ? "text-sm text-white" : "text-sm text-sale-soft"}
+          className={state.ok ? "text-sm text-on-ink" : "text-sm text-sale-on-ink"}
         >
           {state.message}
         </p>

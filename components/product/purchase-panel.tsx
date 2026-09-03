@@ -72,8 +72,11 @@ export function PurchasePanel({
                     <CheckIcon
                       className={cn(
                         "h-5 w-5",
+                        // The tick sits on the swatch's own colour, which comes
+                        // from the database and never follows the theme, so
+                        // these two stay literal rather than tokenised.
                         color.slug === "white" || color.slug === "yellow"
-                          ? "text-ink"
+                          ? "text-black"
                           : "text-white",
                       )}
                     />
@@ -103,7 +106,7 @@ export function PurchasePanel({
                   className={cn(
                     "min-h-11 rounded-full px-5 text-sm transition-colors",
                     selected
-                      ? "bg-ink text-white"
+                      ? "bg-ink text-on-ink"
                       : "bg-surface-muted text-ink-muted hover:bg-line",
                   )}
                 >
@@ -175,7 +178,7 @@ export function PurchasePanel({
             }}
             className={cn(
               "flex h-13 w-13 shrink-0 items-center justify-center rounded-full border border-line-strong transition-colors",
-              wishlisted ? "bg-ink text-white" : "text-ink hover:bg-surface-muted",
+              wishlisted ? "bg-ink text-on-ink" : "text-ink hover:bg-surface-muted",
             )}
           >
             <HeartIcon className="h-5 w-5" filled={wishlisted} />

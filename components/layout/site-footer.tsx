@@ -7,8 +7,12 @@ import { FOOTER_SECTIONS } from "@/lib/constants";
 export function SiteFooter() {
   return (
     <footer className="mt-16 sm:mt-24">
+      {/* Positioned so the whole card paints above the band that is pulled
+          up over it below. Without this only the card's text clears the band
+          — backgrounds of in-flow siblings all paint first — so the panel got
+          clipped mid-heading. */}
       <div className="container-page">
-        <div className="flex flex-col gap-8 rounded-3xl bg-ink px-6 py-8 text-white sm:px-10 sm:py-12 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative flex flex-col gap-8 rounded-3xl bg-ink px-6 py-8 text-on-ink sm:px-10 sm:py-12 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="max-w-lg font-display text-2xl uppercase leading-tight sm:text-3xl lg:text-4xl">
             Stay up to date about our latest offers
           </h2>

@@ -87,7 +87,7 @@ function FilterBody({ facets, filters, showCategories }: Props) {
                   <span>{category.name}</span>
                   <input
                     type="checkbox"
-                    className="h-4 w-4 accent-black"
+                    className="h-4 w-4 accent-ink"
                     checked={filters.categories.includes(category.slug)}
                     onChange={() =>
                       navigate((params) => toggleInParam(params, "category", category.slug))
@@ -141,7 +141,7 @@ function FilterBody({ facets, filters, showCategories }: Props) {
             value={maxPrice}
             aria-label="Maximum price"
             onChange={(e) => setMaxPrice(Number(e.target.value))}
-            className="w-full accent-black"
+            className="w-full accent-ink"
           />
 
           <Button
@@ -184,8 +184,11 @@ function FilterBody({ facets, filters, showCategories }: Props) {
                   <CheckIcon
                     className={cn(
                       "h-4 w-4",
+                      // The tick sits on the swatch's own colour, which comes
+                      // from the database and never follows the theme, so
+                      // these two stay literal rather than tokenised.
                       color.slug === "white" || color.slug === "yellow"
-                        ? "text-ink"
+                        ? "text-black"
                         : "text-white",
                     )}
                   />
@@ -208,7 +211,7 @@ function FilterBody({ facets, filters, showCategories }: Props) {
                 onClick={() => navigate((params) => toggleInParam(params, "size", size.slug))}
                 className={cn(
                   "min-h-9 rounded-full px-4 text-sm transition-colors",
-                  selected ? "bg-ink text-white" : "bg-surface-muted text-ink-muted hover:bg-line",
+                  selected ? "bg-ink text-on-ink" : "bg-surface-muted text-ink-muted hover:bg-line",
                 )}
               >
                 {size.name}
@@ -226,7 +229,7 @@ function FilterBody({ facets, filters, showCategories }: Props) {
                 <span>{style.name}</span>
                 <input
                   type="checkbox"
-                  className="h-4 w-4 accent-black"
+                  className="h-4 w-4 accent-ink"
                   checked={filters.styles.includes(style.slug)}
                   onChange={() => navigate((params) => toggleInParam(params, "style", style.slug))}
                 />
@@ -271,7 +274,7 @@ export function FilterControls(props: Props) {
             aria-label="Close filters"
             tabIndex={-1}
             onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-ink/40"
+            className="absolute inset-0 bg-scrim"
           />
           <div
             role="dialog"

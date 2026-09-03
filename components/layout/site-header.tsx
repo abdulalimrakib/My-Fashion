@@ -7,6 +7,7 @@ import { CartIndicator, CartIndicatorFallback } from "@/components/layout/cart-i
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { PrimaryNav } from "@/components/layout/primary-nav";
 import { SearchField } from "@/components/layout/search-field";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { HeartIcon } from "@/components/ui/icons";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -40,6 +41,11 @@ export async function SiteHeader() {
             >
               <HeartIcon className="h-6 w-6" />
             </Link>
+            {/* Hidden on the narrowest screens like the wishlist link; the
+                mobile drawer carries the equivalent control. */}
+            <div className="hidden sm:block">
+              <ThemeToggle />
+            </div>
             <Suspense fallback={<CartIndicatorFallback />}>
               <CartIndicator />
             </Suspense>

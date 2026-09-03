@@ -88,7 +88,7 @@ export default async function CartPage(props: PageProps<"/cart">) {
                 </div>
                 <button
                   type="submit"
-                  className="min-h-11 rounded-full bg-ink px-6 text-sm font-medium text-white hover:bg-ink/85"
+                  className="min-h-11 rounded-full bg-ink px-6 text-sm font-medium text-on-ink hover:bg-ink/85"
                 >
                   Apply
                 </button>

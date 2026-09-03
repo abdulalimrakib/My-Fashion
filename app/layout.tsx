@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ThemeProvider } from "next-themes";
 import { Geist, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 
@@ -68,20 +69,36 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       data-scroll-behavior="smooth"
+      // next-themes writes `data-theme` from its own blocking script before
+      // React hydrates, so the server markup and the live DOM differ here by
+      // design.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${integralCf.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-surface text-ink">
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-white"
+        {/* `attribute` is what `app/globals.css` keys its palette off, and
+            `storageKey` is namespaced alongside the other SHOP.CO keys.
+            `disableTransitionOnChange` stops the eight `transition-colors`
+            elements from fading out of step with the rest of the page. */}
+        <ThemeProvider
+          attribute="data-theme"
+          defaultTheme="system"
+          enableSystem
+          storageKey="shopco:theme"
+          disableTransitionOnChange
         >
-          Skip to content
-        </a>
-        <SiteHeader />
-        <main id="main" className="flex-1">
-          {children}
-        </main>
-        <SiteFooter />
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-on-ink"
+          >
+            Skip to content
+          </a>
+          <SiteHeader />
+          <main id="main" className="flex-1">
+            {children}
+          </main>
+          <SiteFooter />
+        </ThemeProvider>
       </body>
     </html>
   );

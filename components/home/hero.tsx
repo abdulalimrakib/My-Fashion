@@ -40,14 +40,17 @@ export function Hero() {
         </div>
 
         <div className="relative flex items-end justify-center lg:justify-end">
-          {/* Decorative sparkles, sized from the same 104×80 vector. */}
+          {/* Decorative sparkles, sized from the same 104×80 vector. The file
+              is `fill="currentColor"`, but an <img> is its own document and
+              cannot inherit the page's colour, so it always paints black and
+              has to be inverted for the dark hero. */}
           <Image
             src="/images/hero/star.svg"
             alt=""
             aria-hidden="true"
             width={104}
             height={80}
-            className="absolute right-2 top-4 z-10 w-12 sm:right-4 sm:w-20 lg:top-10 lg:w-28"
+            className="absolute right-2 top-4 z-10 w-12 sm:right-4 sm:w-20 lg:top-10 lg:w-28 dark:invert"
           />
           <Image
             src="/images/hero/star.svg"
@@ -55,7 +58,7 @@ export function Hero() {
             aria-hidden="true"
             width={104}
             height={80}
-            className="absolute left-0 top-1/3 z-10 w-7 sm:w-10 lg:w-14"
+            className="absolute left-0 top-1/3 z-10 w-7 sm:w-10 lg:w-14 dark:invert"
           />
           <Image
             src="/images/hero/hero-couple.png"

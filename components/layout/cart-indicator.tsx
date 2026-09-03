@@ -21,7 +21,7 @@ export async function CartIndicator() {
     >
       <CartIcon className="h-6 w-6" />
       {count > 0 ? (
-        <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11px] font-semibold text-white">
+        <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-[11px] font-semibold text-on-ink">
           {count > 99 ? "99+" : count}
         </span>
       ) : null}
