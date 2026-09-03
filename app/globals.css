@@ -1,26 +1,132 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ---------------------------------------------------------------------------
+   Design tokens
+
+   The SHOP.CO visual language is true black on white with a single grey fill;
+   it has no dark variant, so the palette is committed rather than duplicated
+   under `prefers-color-scheme`.
+   --------------------------------------------------------------------------- */
+
+@theme {
+  --color-ink: #000000;
+  --color-ink-muted: rgb(0 0 0 / 0.6);
+  --color-ink-subtle: rgb(0 0 0 / 0.4);
+
+  --color-surface: #ffffff;
+  --color-surface-muted: #f0f0f0;
+  --color-surface-sunken: #f2f0f1;
+
+  --color-line: rgb(0 0 0 / 0.1);
+  --color-line-strong: rgb(0 0 0 / 0.2);
+
+  --color-sale: #ff3333;
+  --color-sale-soft: #ffebeb;
+  --color-star: #ffc633;
+  --color-positive: #01ab31;
+
+  /* The reference layout switches at 400px, below Tailwind's smallest stop. */
+  --breakpoint-xs: 25rem;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-integral-cf);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-surface);
+  }
+
+  /* Keyboard focus is visible everywhere; pointer focus stays quiet. */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ---------------------------------------------------------------------------
+   Utilities
+   --------------------------------------------------------------------------- */
+
+/* Page gutter: 16px → 24px at 400px → 96px at 768px, mirroring the reference. */
+@utility container-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 100rem;
+  padding-inline: 1rem;
+
+  @variant xs {
+    padding-inline: 1.5rem;
+  }
+
+  @variant md {
+    padding-inline: 4rem;
+  }
+
+  @variant xl {
+    padding-inline: 6rem;
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-integral-cf), var(--font-geist-sans), ui-sans-serif, sans-serif;
+  font-weight: 700;
+}
+
+/* Horizontal rails that bleed to the page edge on small screens so cards are
+   visibly cut off, signalling that the row scrolls. */
+@utility rail-scroll {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding-bottom: 0.25rem;
+
+  /* Without this the rail's scrollable area leaks into the document's own
+     scroll width, letting the whole page slide sideways into blank space.
+     Paint containment is already true of a scroller, and unlike setting
+     `overflow-x` on the root it leaves the sticky header intact. Rails that
+     turn into grids at wider widths opt out with `lg:[contain:none]`. */
+  contain: paint;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  & > * {
+    scroll-snap-align: start;
+    flex: 0 0 auto;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

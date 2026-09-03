@@ -1,0 +1,140 @@
+name: Deploy
+
+# main    -> Vercel production
+# staging -> Vercel preview
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy per branch at a time, and never cancel one in flight: a migration
+# that has been applied followed by a cancelled build leaves the database ahead
+# of the deployed code. Queuing is the safer failure mode.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  deploy:
+    name: ${{ github.ref_name == 'main' && 'Production' || 'Preview' }}
+    needs: checks
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      IS_PRODUCTION: ${{ github.ref_name == 'main' }}
+      VERCEL_TARGET: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      # Links the repo to the Vercel project and downloads that environment's
+      # variables to .vercel/.env.<target>.local, which `vercel build` reads.
+      # The runtime DATABASE_URL therefore comes from Vercel, not from here.
+      - name: Pull Vercel ${{ env.VERCEL_TARGET }} environment
+        run: |
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          else
+            vercel pull --yes --environment=preview \
+              --git-branch="$GITHUB_REF_NAME" --token="$VERCEL_TOKEN"
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # Migrations run before the build, not during it: `app/sitemap.ts` is
+      # prerendered at build time from live product rows, so the schema has to
+      # be in place before `vercel build` runs. `migrate deploy` is forward-only
+      # and never prompts.
+      #
+      # This uses the *direct* (unpooled) Neon endpoint. Prisma takes a session
+      # advisory lock while migrating, which is unreliable through PgBouncer,
+      # so it deliberately differs from the pooled URL used at runtime.
+      - name: Apply database migrations
+        env:
+          DATABASE_URL: ${{ github.ref_name == 'main'
+            && secrets.PRODUCTION_DIRECT_DATABASE_URL
+            || secrets.STAGING_DIRECT_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Missing migration URL. Set the ${{ github.ref_name == 'main' && 'PRODUCTION_DIRECT_DATABASE_URL' || 'STAGING_DIRECT_DATABASE_URL' }} repository secret (see docs/DEPLOYMENT.md)."
+            exit 1
+          fi
+          npm run db:deploy
+
+      - name: Build
+        run: |
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            vercel build --prod --token="$VERCEL_TOKEN"
+          else
+            vercel build --token="$VERCEL_TOKEN"
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy
+        id: deploy
+        run: |
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          else
+            url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "$url"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # A deployment that returns a 5xx on its own home page is a failed
+      # deployment, even though the upload succeeded.
+      - name: Smoke test the deployment
+        run: |
+          url="${{ steps.deploy.outputs.url }}"
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url/") || code=000
+            if [ "$code" = "200" ]; then
+              echo "Home page returned 200."
+              break
+            fi
+            if [ "$attempt" = "5" ]; then
+              echo "::error::Home page returned $code after 5 attempts at $url"
+              exit 1
+            fi
+            echo "Attempt $attempt returned $code; retrying in 10s."
+            sleep 10
+          done
+          shop=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url/shop")
+          echo "/shop returned $shop"
+          [ "$shop" = "200" ] || { echo "::error::/shop returned $shop"; exit 1; }
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${{ github.ref_name == 'main' && 'Production' || 'Preview' }} deployment"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| URL | ${{ steps.deploy.outputs.url }} |"
+            echo "| Branch | \`${{ github.ref_name }}\` |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
