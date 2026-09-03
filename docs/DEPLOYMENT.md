@@ -50,12 +50,32 @@ direct  ep-xxxx.c-4.ap-southeast-1.aws.neon.tech          <- GitHub secret
 
 ## One-time setup
 
-### 1. Link the Vercel project
+### 1. Find the project and org IDs
+
+`vercel link` writes one of two files, depending on which mode you picked:
+
+| File | Created by | Where the IDs are |
+| --- | --- | --- |
+| `.vercel/project.json` | `vercel link` (project-level) | `projectId`, `orgId` at the top level |
+| `.vercel/repo.json` | `vercel link --repo` (repository-level) | `projects[0].id`, `projects[0].orgId` |
+
+Repository-level linking is the newer mode and has **no `project.json`** — if you
+followed a guide that says to `cat .vercel/project.json` and got "No such file",
+that is why. This command prints the right values from whichever file exists:
 
 ```bash
-npx vercel link          # creates .vercel/ locally (gitignored)
-cat .vercel/project.json # -> orgId and projectId
+node -e '
+  const fs = require("node:fs");
+  const f = fs.existsSync(".vercel/project.json") ? "project.json" : "repo.json";
+  const d = JSON.parse(fs.readFileSync(".vercel/" + f, "utf8"));
+  const p = d.projects ? d.projects[0] : d;
+  console.log("VERCEL_PROJECT_ID", p.id ?? p.projectId);
+  console.log("VERCEL_ORG_ID    ", p.orgId);
+'
 ```
+
+If `.vercel/` does not exist at all, run `npx vercel link` first. The Vercel
+project must already exist — the pipeline deploys to it, it does not create it.
 
 ### 2. GitHub repository secrets
 
@@ -63,9 +83,9 @@ cat .vercel/project.json # -> orgId and projectId
 
 | Secret | Value |
 | --- | --- |
-| `VERCEL_TOKEN` | Vercel account token (`vercel.com/account/tokens`) |
-| `VERCEL_ORG_ID` | `orgId` from `.vercel/project.json` |
-| `VERCEL_PROJECT_ID` | `projectId` from `.vercel/project.json` |
+| `VERCEL_TOKEN` | Vercel token (`vercel.com/account/tokens`) — **see the scope note below** |
+| `VERCEL_ORG_ID` | `orgId` from step 1 (starts `team_` or `user_`) |
+| `VERCEL_PROJECT_ID` | project id from step 1 (starts `prj_`) |
 | `PRODUCTION_DIRECT_DATABASE_URL` | Neon **production** branch, **unpooled** |
 | `STAGING_DIRECT_DATABASE_URL` | Neon **staging** branch, **unpooled** |
 
@@ -80,6 +100,12 @@ application and the build itself use, so they are the **pooled** URLs.
 | `DATABASE_URL` | Preview | Neon `staging` branch, pooled |
 | `NEXT_PUBLIC_SITE_URL` | Production | `https://your-domain.com` |
 | `NEXT_PUBLIC_SITE_URL` | Preview | preview domain, or leave unset |
+
+**Token scope.** When you create a token, Vercel asks which scope it applies to.
+If your `VERCEL_ORG_ID` starts with `team_`, the project belongs to a team, and a
+token scoped to your *personal account* cannot see it — `vercel pull` then fails
+with `Could not retrieve Project Settings`, which does not mention scope at all.
+Pick the team that owns the project in the token's scope selector.
 
 `NEXT_PUBLIC_SITE_URL` is optional; it sets `metadataBase` and the absolute URLs
 in `sitemap.xml` and `robots.txt`. Without it those fall back to
@@ -129,3 +155,31 @@ git add prisma/migrations && git commit
 
 Push to `staging` first: the pipeline applies it to the Neon staging branch and
 deploys a preview. Merge to `main` to apply it to production.
+
+## Troubleshooting
+
+### `Could not retrieve Project Settings` on `vercel pull`
+
+The CLI could not resolve the project. In order of likelihood:
+
+1. **`VERCEL_ORG_ID` or `VERCEL_PROJECT_ID` is unset.** An unset GitHub secret
+   interpolates to an empty string, so the CLI sees no project at all. The
+   `Check required secrets` step now catches this before Vercel runs.
+2. **The IDs came from the wrong place.** With repository-level linking the ids
+   live in `.vercel/repo.json` under `projects[0]`, not in `project.json`. See
+   step 1.
+3. **The token is scoped to the wrong account.** A `team_…` orgId with a
+   personal-account token fails exactly this way. Recreate the token with the
+   owning team selected.
+4. **The project was deleted or renamed in Vercel.** Re-run `npx vercel link`
+   and read the ids again.
+
+The advice in Vercel's error to "remove the `.vercel` directory" applies to
+local runs. CI checks out fresh, so there is never a stale `.vercel` there.
+
+### The deploy succeeded but pages 500
+
+Check the Vercel function logs. The usual cause is a missing or unreachable
+`DATABASE_URL` in that Vercel environment — every route in this app queries
+Postgres. Confirm the variable is set for the right environment (Production vs
+Preview) and that it is the **pooled** Neon URL.
