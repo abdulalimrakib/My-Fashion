@@ -103,7 +103,26 @@ jobs:
             exit 1
           fi
 
-      # Migrations run before the build, not during it
+      # Build BEFORE migrating. A failed build is the most common failure here,
+      # and it costs nothing if it happens while the database is untouched.
+      # Migrating first meant a broken build left the schema ahead of the code
+      # that is still serving traffic, with no deployment to go with it.
+      #
+      # The build needs no database: /sitemap.xml is force-dynamic, so nothing
+      # queries Prisma at build time.
+      - name: Build
+        run: |
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            vercel build --prod --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          else
+            vercel build --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # Now that there is a build to deploy, move the schema forward. The gap
+      # between migrating and deploying is the risky window, so it is kept as
+      # small as possible: these two steps are adjacent.
       - name: Apply database migrations
         env:
           DATABASE_URL: ${{ github.ref_name == 'main'
@@ -116,26 +135,26 @@ jobs:
           fi
           npm run db:deploy
 
-      # 2. FIXED BUILD STEP WITH SCOPE
-      - name: Build
-        run: |
-          if [ "$IS_PRODUCTION" = "true" ]; then
-            vercel build --prod --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
-          else
-            vercel build --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
-          fi
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-
-      # 3. FIXED DEPLOY STEP WITH SCOPE
       - name: Deploy
         id: deploy
         run: |
+          # `vercel deploy` takes --target, NOT --environment. (--environment
+          # is a `vercel pull` flag.) Passing it here made every preview deploy
+          # fail on an unknown option.
           if [ "$IS_PRODUCTION" = "true" ]; then
-            url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID")
+            url=$(vercel deploy --prebuilt --target=production --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | tail -n1)
           else
-            url=$(vercel deploy --prebuilt --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID")
+            url=$(vercel deploy --prebuilt --target=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | tail -n1)
           fi
+
+          # Take only the last line: the CLI can print extra output, and an
+          # empty or multi-line value would surface later as a confusing curl
+          # failure in the smoke test rather than here.
+          case "$url" in
+            https://*) ;;
+            *) echo "::error::vercel deploy did not return a deployment URL."; exit 1 ;;
+          esac
+
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "$url"
         env:
