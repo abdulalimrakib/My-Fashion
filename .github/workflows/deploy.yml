@@ -122,7 +122,7 @@ jobs:
           if [ "$IS_PRODUCTION" = "true" ]; then
             vercel build --prod --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           else
-            vercel build --environment=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+            vercel build --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           fi
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
