@@ -177,6 +177,40 @@ The CLI could not resolve the project. In order of likelihood:
 The advice in Vercel's error to "remove the `.vercel` directory" applies to
 local runs. CI checks out fresh, so there is never a stale `.vercel` there.
 
+The `Verify Vercel access` step queries the API before `vercel pull` and turns
+this into a specific message (bad token / wrong scope / wrong project id). To
+run the same check locally:
+
+`vercel pull` resolves the **org and the project separately** and raises the
+same message if either comes back 403, so check both:
+
+```bash
+read -rsp 'Vercel token: ' TOKEN && echo
+ORG=$(node -e 'const d=require("./.vercel/repo.json");console.log((d.projects?d.projects[0]:d).orgId)')
+PRJ=$(node -e 'const d=require("./.vercel/repo.json");const p=d.projects?d.projects[0]:d;console.log(p.id??p.projectId)')
+
+curl -s -o /dev/null -w 'org     -> %{http_code}\n' \
+  -H "Authorization: Bearer $TOKEN" "https://api.vercel.com/v2/teams/$ORG"
+curl -s -o /dev/null -w 'project -> %{http_code}\n' \
+  -H "Authorization: Bearer $TOKEN" "https://api.vercel.com/v9/projects/$PRJ?teamId=$ORG"
+```
+
+| org | project | Meaning |
+| --- | --- | --- |
+| 200 | 200 | Credentials are fine — the CI secrets must differ from what you tested |
+| 403 | 200 | Token reaches the project but **cannot read the team** — recreate it with that team selected in Scope |
+| 403 | 403 | Token not scoped to the team at all |
+| any | 404 | The two ids belong to different accounts, or the project was renamed/deleted |
+| 401 | 401 | Token invalid, revoked, or expired |
+
+Do **not** use `GET /v2/user` as a health check: it returns 404 for some token
+types that otherwise work, which makes a working token look broken.
+
+Because the CI secrets can differ from what you test locally (a trailing
+newline when pasting is the usual culprit), the `Verify Vercel access` step
+prints a fingerprint of each value — its length and first/last characters — so
+a stale or truncated secret is visible without exposing it.
+
 ### The deploy succeeded but pages 500
 
 Check the Vercel function logs. The usual cause is a missing or unreachable

@@ -89,6 +89,64 @@ jobs:
       # Links the repo to the Vercel project and downloads that environment's
       # variables to .vercel/.env.<target>.local, which `vercel build` reads.
       # The runtime DATABASE_URL therefore comes from Vercel, not from here.
+      # `vercel pull` reports every identity problem as the same opaque
+      # "Could not retrieve Project Settings". Internally it resolves the org
+      # and the project separately and throws that message if *either* returns
+      # 403, so both are checked here to say which one actually failed.
+      #
+      # Note: /v2/user is deliberately not used as a gate - it returns 404 for
+      # some token types even when the token works fine.
+      - name: Verify Vercel access
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          body=$(mktemp)
+          api() {
+            curl -sS -o "$body" -w '%{http_code}' \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              --max-time 30 "https://api.vercel.com$1" || echo 000
+          }
+          # Fingerprints only - enough to spot a truncated or stale secret
+          # without ever printing one.
+          fingerprint() { printf '%s (%s chars, %s…%s)\n' "$1" "${#2}" "$(printf %.6s "$2")" "$(printf %s "$2" | tail -c 4)"; }
+          fingerprint VERCEL_ORG_ID "$VERCEL_ORG_ID"
+          fingerprint VERCEL_PROJECT_ID "$VERCEL_PROJECT_ID"
+          echo "VERCEL_TOKEN (${#VERCEL_TOKEN} chars)"
+
+          fail=0
+
+          # Mirrors getOrgById(). A 404 here is tolerated by the CLI; a 403 is not.
+          code=$(api "/v2/teams/$VERCEL_ORG_ID")
+          case "$code" in
+            200) echo "Org access OK." ;;
+            403)
+              echo "::error::The token cannot read team $VERCEL_ORG_ID (HTTP 403). This is what makes 'vercel pull' fail even when the project itself is reachable: the CLI resolves the org and the project separately. Create a token at https://vercel.com/account/tokens with that team chosen in the Scope selector, and update the VERCEL_TOKEN secret."
+              fail=1 ;;
+            404) echo "Org lookup returned 404; the CLI tolerates this, continuing." ;;
+            401)
+              echo "::error::VERCEL_TOKEN is invalid or expired (HTTP 401)."
+              fail=1 ;;
+            *) echo "Org lookup returned HTTP $code." ;;
+          esac
+
+          # Mirrors getProjectByNameOrId().
+          code=$(api "/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")
+          case "$code" in
+            200) echo "Project access OK: $(node -e 'console.log(require(process.argv[1]).name??"?")' "$body" 2>/dev/null)" ;;
+            403)
+              echo "::error::The token cannot access project $VERCEL_PROJECT_ID (HTTP 403). Scope the token to the team that owns it."
+              fail=1 ;;
+            404)
+              echo "::error::No project $VERCEL_PROJECT_ID under scope $VERCEL_ORG_ID (HTTP 404). Check the two ids belong to the same account - re-read them per docs/DEPLOYMENT.md."
+              fail=1 ;;
+            *)
+              echo "::error::Unexpected HTTP $code checking project access."
+              cat "$body"
+              fail=1 ;;
+          esac
+
+          [ "$fail" = "0" ] || exit 1
+
       - name: Pull Vercel ${{ env.VERCEL_TARGET }} environment
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -130,10 +188,12 @@ jobs:
           if [ "$IS_PRODUCTION" = "true" ]; then
             vercel build --prod --token="$VERCEL_TOKEN"
           else
-            vercel build --token="$VERCEL_TOKEN"
+            # Explicitly passing the target environment ensures Vercel pulls the exact right preview variables
+            vercel build --environment=preview --token="$VERCEL_TOKEN"
           fi
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
 
       - name: Deploy
         id: deploy
@@ -141,12 +201,14 @@ jobs:
           if [ "$IS_PRODUCTION" = "true" ]; then
             url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
           else
-            url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
+            # Forcing the environment ensures custom preview branch configurations on Vercel side don't break the prebuilt target mapping
+            url=$(vercel deploy --prebuilt --environment=preview --token="$VERCEL_TOKEN")
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "$url"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
 
       # A deployment that returns a 5xx on its own home page is a failed
       # deployment, even though the upload succeeded.
@@ -175,7 +237,7 @@ jobs:
           {
             echo "### ${{ github.ref_name == 'main' && 'Production' || 'Preview' }} deployment"
             echo
-            echo "| | |"
+            echo "| | |"F
             echo "| --- | --- |"
             echo "| URL | ${{ steps.deploy.outputs.url }} |"
             echo "| Branch | \`${{ github.ref_name }}\` |"
