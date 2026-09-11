@@ -89,6 +89,52 @@ export const FOOTER_SECTIONS = [
   },
 ] as const;
 
+/**
+ * Editorial photography for the "Browse by dress style" cards, keyed by
+ * `DressStyle.slug`.
+ *
+ * These live in code rather than in the database on purpose: the files ship in
+ * `public/`, so a column holding their paths would be a second place to keep in
+ * sync with no extra flexibility — the image could not change without a deploy
+ * either way. A style with no entry here simply renders as a label-only card.
+ *
+ * `objectPosition` is per-photo and not eyeballed. `object-fit: cover`
+ * distributes the overflow by that percentage, so the visible band starts at
+ * `P x (1 - cardHeight / scaledImageHeight)`. Each value below is solved from
+ * that for the card's real geometry, which is why the portrait shots sit near
+ * 6-7%: at a 2.6:1 card they only show about a quarter of their height, and
+ * anything larger cuts the subject's head off.
+ */
+export const DRESS_STYLE_IMAGES: Record<
+  string,
+  { src: string; objectPosition: string; blurDataURL: string }
+> = {
+  casual: {
+    src: "/images/casual.jpeg",
+    objectPosition: "50% 27%",
+    blurDataURL:
+      "data:image/webp;base64,UklGRn4AAABXRUJQVlA4IHIAAADwAQCdASoQABAAAwBSJZQC7AYtLL8mXAAA/KuTi7q8oLINTJtPf4pUWX3ay1kY2PigCoDo1AC6ze92bIDMq1OcwtNRt27VChHjHCdLo1viwtt7EbEOIwQ8FVVwbJ9m24csk8jAC6w7omzFWA6JL3kTgAA=",
+  },
+  formal: {
+    src: "/images/formal.jpeg",
+    objectPosition: "50% 12%",
+    blurDataURL:
+      "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAADwAQCdASoQAAsAAwBSJZwAD43tYkAcw2gA/vj6Is1cl7m9OMJtGfeFig/8hMaFRQBmdiW6bhX8WbDrR0YyKfNbvY9Nymypj/zkdMRoAAA=",
+  },
+  party: {
+    src: "/images/party.jpeg",
+    objectPosition: "50% 7%",
+    blurDataURL:
+      "data:image/webp;base64,UklGRr4AAABXRUJQVlA4ILIAAACwBACdASoQABcAPt1epkyopSOiMAgBEBuJQBOmUGYW6Qeq0meI2iKniSYMXMccAP79fSE+NWkpff3+VlTbwP++7HXD9lB8f40Ux1+VqE1uvl62aMB+J3P6aZfswykwdkeqPjsU31v3q+kEUqOvSMNyWdeG0DjLG9bUC7HgTdIoAJbakGA1dRsG7D/4aRfNo2RnQ9gyA5WANzR7wLYkUZo40VF7WbdeovZdqtBb3shzMYAA",
+  },
+  gym: {
+    src: "/images/gym.jpeg",
+    objectPosition: "50% 6%",
+    blurDataURL:
+      "data:image/webp;base64,UklGRsgAAABXRUJQVlA4ILwAAABQBACdASoQABgAPt1cpkyopSOiMAgBEBuJQBYdsX/cAvuqylcZu2a9Sp0AAP7zfhacXu3gDWEjXXZrneLQ6PPz8IIzHyLKHes+jfLo/P2PlY2sKcDwEaCfbMlUx6NcOmwLIlr1L2YKu+JK/h3ZXP98r/9jX9l/kNZo8j8/8zwIX1EuBHdp11Jf4mDUBn8bhPcDfvSdyWBUIjqIcn1Hj9jXoEKJlALBGgPLAE/mME8pqwW7I8k6ipdCm7eIAA==",
+  },
+};
+
 export const BRANDS = [
   { name: "Versace", src: "/icons/brands/versace.svg", width: 167, height: 34 },
   { name: "Zara", src: "/icons/brands/zara.svg", width: 92, height: 38 },

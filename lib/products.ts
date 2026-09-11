@@ -211,31 +211,14 @@ export async function getTestimonials() {
   return prisma.testimonial.findMany({ orderBy: { position: "asc" } });
 }
 
-/** Representative product image for each dress-style card on the home page. */
+/**
+ * The four dress styles shown on the home page. The card artwork comes from
+ * `DRESS_STYLE_IMAGES` rather than from a product, so this only needs the
+ * taxonomy itself.
+ */
 export async function getDressStyleCards() {
-  const styles = await prisma.dressStyle.findMany({
+  return prisma.dressStyle.findMany({
     orderBy: { position: "asc" },
-    select: {
-      slug: true,
-      name: true,
-      products: {
-        take: 1,
-        orderBy: { rating: "desc" },
-        select: {
-          name: true,
-          images: {
-            take: 1,
-            orderBy: { position: "asc" },
-            select: { url: true, blurDataUrl: true },
-          },
-        },
-      },
-    },
+    select: { slug: true, name: true },
   });
-
-  return styles.map((style) => ({
-    slug: style.slug,
-    name: style.name,
-    image: style.products[0]?.images[0] ?? null,
-  }));
 }
