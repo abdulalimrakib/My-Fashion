@@ -160,12 +160,30 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
-      # Smoke test the deployment
+      # Deployments sit behind Vercel Deployment Protection, which answers an
+      # unauthenticated request with a 302 to vercel.com/sso-api before the app
+      # is ever reached — so plain `curl` smoke-tests the login page, not the
+      # site. `vercel curl` authenticates with the same token used to deploy and
+      # handles the protection bypass itself.
+      #
+      # Turning Deployment Protection off would also make this pass, and would
+      # be the wrong trade: it would make every preview publicly readable.
       - name: Smoke test the deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           url="${{ steps.deploy.outputs.url }}"
+
+          probe() {
+            vercel curl "$url$1" --yes \
+              --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" \
+              -- --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
+              2>/dev/null | tail -n1
+          }
+
+          # A fresh deployment can take a few seconds to become reachable.
           for attempt in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url/") || code=000
+            code=$(probe /) || code=000
             if [ "$code" = "200" ]; then
               echo "Home page returned 200."
               break
@@ -177,7 +195,12 @@ jobs:
             echo "Attempt $attempt returned $code; retrying in 10s."
             sleep 10
           done
-          shop=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url/shop")
+
+          # /shop reads from the database, so a 200 here also confirms the
+          # deployment's DATABASE_URL works at runtime — which `vercel build`
+          # cannot verify, since the value is a Sensitive variable and is only
+          # available to the running deployment.
+          shop=$(probe /shop)
           echo "/shop returned $shop"
           [ "$shop" = "200" ] || { echo "::error::/shop returned $shop"; exit 1; }
 
