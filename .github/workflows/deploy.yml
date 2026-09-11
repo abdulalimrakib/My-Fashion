@@ -10,9 +10,10 @@ on:
 permissions:
   contents: read
 
-# One deploy per branch at a time, and never cancel one in flight: a migration
-# that has been applied followed by a cancelled build leaves the database ahead
-# of the deployed code. Queuing is the safer failure mode.
+# One deploy per branch at a time, and never cancel one in flight: migrations
+# are applied just before the deploy, so cancelling between those two steps
+# would leave the database ahead of the code that is still serving traffic.
+# Queuing is the safer failure mode.
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
@@ -86,7 +87,9 @@ jobs:
       - name: Install Vercel CLI
         run: npm i -g vercel@latest
 
-      # 1. FIXED & UNCOMMENTED PULL STEP WITH SCOPE
+      # Fetches the project settings and environment for the target. Note that
+      # `vercel pull` takes --environment, while `vercel deploy` below takes
+      # --target; they are different flags on different commands.
       - name: Pull Vercel ${{ env.VERCEL_TARGET }} environment
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -97,7 +100,6 @@ jobs:
             args="--environment=preview --git-branch=$GITHUB_REF_NAME"
           fi
 
-          # Added --scope="$VERCEL_ORG_ID" to accurately route your personal token 
           if ! vercel pull --yes $args --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"; then
             echo "::error::vercel pull failed. Usual causes: VERCEL_PROJECT_ID or VERCEL_ORG_ID does not match the Vercel project, or VERCEL_TOKEN is invalid."
             exit 1
@@ -138,6 +140,12 @@ jobs:
       - name: Deploy
         id: deploy
         run: |
+          # GitHub runs `run:` steps as `bash -e`, which does NOT include
+          # pipefail — so in `vercel deploy ... | tail -n1` the exit status is
+          # tail's, and a failed deploy would slip through to be caught only by
+          # the URL check below. pipefail makes it fail at the real error.
+          set -o pipefail
+
           # `vercel deploy` takes --target, NOT --environment. (--environment
           # is a `vercel pull` flag.) Passing it here made every preview deploy
           # fail on an unknown option.
@@ -175,10 +183,17 @@ jobs:
           url="${{ steps.deploy.outputs.url }}"
 
           probe() {
-            vercel curl "$url$1" --yes \
+            response=$(vercel curl "$url$1" --yes \
               --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" \
               -- --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
-              2>/dev/null | tail -n1
+            2>&1)
+            # Extract the 3-digit status code. `grep -o` returns EVERY match,
+            # and the CLI banner shares this output, so `tail -n1` keeps just
+            # the last one — otherwise a diagnostic line ending in three digits
+            # (a project id, a version) would make $code multi-line and fail
+            # every comparison below. `|| echo 000` covers no match at all,
+            # e.g. an invalid token.
+            echo "$response" | grep -oE '[0-9]{3}$' | tail -n1 || echo "000"
           }
 
           # A fresh deployment can take a few seconds to become reachable.
