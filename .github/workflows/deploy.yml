@@ -1,0 +1,281 @@
+name: Deploy
+
+# main    -> Vercel production
+# staging -> Vercel preview
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy per branch at a time, and never cancel one in flight: migrations
+# are applied just before the deploy, so cancelling between those two steps
+# would leave the database ahead of the code that is still serving traffic.
+# Queuing is the safer failure mode.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  deploy:
+    name: ${{ github.ref_name == 'main' && 'Production' || 'Preview' }}
+    needs: checks
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      IS_PRODUCTION: ${{ github.ref_name == 'main' }}
+      VERCEL_TARGET: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+
+    steps:
+      # Vercel's own failure for a missing or wrong id is "Could not retrieve
+      # Project Settings", which says nothing about which secret is at fault.
+      # An unset GitHub secret interpolates to an empty string, so check first.
+      - name: Check required secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          MIGRATION_URL: ${{ github.ref_name == 'main'
+            && secrets.PRODUCTION_DIRECT_DATABASE_URL
+            || secrets.STAGING_DIRECT_DATABASE_URL }}
+          MIGRATION_SECRET_NAME: ${{ github.ref_name == 'main'
+            && 'PRODUCTION_DIRECT_DATABASE_URL'
+            || 'STAGING_DIRECT_DATABASE_URL' }}
+        run: |
+          missing=0
+          require() {
+            if [ -z "$2" ]; then
+              echo "::error::Repository secret $1 is not set. See docs/DEPLOYMENT.md."
+              missing=1
+            fi
+          }
+          require VERCEL_TOKEN "$VERCEL_TOKEN"
+          require VERCEL_ORG_ID "$VERCEL_ORG_ID"
+          require VERCEL_PROJECT_ID "$VERCEL_PROJECT_ID"
+          require "$MIGRATION_SECRET_NAME" "$MIGRATION_URL"
+
+          # Wrong-shaped ids fail the same opaque way, so catch those too.
+          case "$VERCEL_PROJECT_ID" in
+            ""|prj_*) ;;
+            *) echo "::error::VERCEL_PROJECT_ID should start with 'prj_'. Copy the 'id' field from .vercel/repo.json (or .vercel/project.json)."; missing=1 ;;
+          esac
+          case "$VERCEL_ORG_ID" in
+            ""|team_*|user_*) ;;
+            *) echo "::error::VERCEL_ORG_ID should start with 'team_' or 'user_'. Copy the 'orgId' field from .vercel/repo.json (or .vercel/project.json)."; missing=1 ;;
+          esac
+
+          [ "$missing" = "0" ] || exit 1
+          echo "All required secrets are present."
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      # Fetches the project settings and environment for the target. Note that
+      # `vercel pull` takes --environment, while `vercel deploy` below takes
+      # --target; they are different flags on different commands.
+      - name: Pull Vercel ${{ env.VERCEL_TARGET }} environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            args="--environment=production"
+          else
+            args="--environment=preview --git-branch=$GITHUB_REF_NAME"
+          fi
+
+          if ! vercel pull --yes $args --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"; then
+            echo "::error::vercel pull failed. Usual causes: VERCEL_PROJECT_ID or VERCEL_ORG_ID does not match the Vercel project, or VERCEL_TOKEN is invalid."
+            exit 1
+          fi
+
+      # Build BEFORE migrating. A failed build is the most common failure here,
+      # and it costs nothing if it happens while the database is untouched.
+      # Migrating first meant a broken build left the schema ahead of the code
+      # that is still serving traffic, with no deployment to go with it.
+      #
+      # The build needs no database: /sitemap.xml is force-dynamic, so nothing
+      # queries Prisma at build time.
+      - name: Build
+        run: |
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            vercel build --prod --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          else
+            vercel build --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          fi
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # Now that there is a build to deploy, move the schema forward. The gap
+      # between migrating and deploying is the risky window, so it is kept as
+      # small as possible: these two steps are adjacent.
+      - name: Apply database migrations
+        env:
+          DATABASE_URL: ${{ github.ref_name == 'main'
+            && secrets.PRODUCTION_DIRECT_DATABASE_URL
+            || secrets.STAGING_DIRECT_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Missing migration URL. Set the ${{ github.ref_name == 'main' && 'PRODUCTION_DIRECT_DATABASE_URL' || 'STAGING_DIRECT_DATABASE_URL' }} repository secret (see docs/DEPLOYMENT.md)."
+            exit 1
+          fi
+          npm run db:deploy
+
+      - name: Deploy
+        id: deploy
+        run: |
+          # GitHub runs `run:` steps as `bash -e`, which does NOT include
+          # pipefail — so in `vercel deploy ... | tail -n1` the exit status is
+          # tail's, and a failed deploy would slip through to be caught only by
+          # the URL check below. pipefail makes it fail at the real error.
+          set -o pipefail
+
+          # `vercel deploy` takes --target, NOT --environment. (--environment
+          # is a `vercel pull` flag.) Passing it here made every preview deploy
+          # fail on an unknown option.
+          #
+          # The --meta flags attach the git context by hand. Because
+          # vercel.json sets git.deploymentEnabled=false, Vercel's own Git
+          # integration does not run, and a bare `vercel deploy --prebuilt`
+          # uploads a build with no branch or commit attached — so the
+          # dashboard cannot tell which branch it came from and falls back to
+          # showing the project's production branch. These keys are the ones
+          # Vercel reads for GitHub, and they also restore the stable branch
+          # alias (my-fashion-git-staging-<scope>.vercel.app) alongside the
+          # unique deployment URL.
+          meta="--meta githubCommitRef=$GITHUB_REF_NAME \
+                --meta githubCommitSha=$GITHUB_SHA \
+                --meta githubCommitAuthorName=$GITHUB_ACTOR \
+                --meta githubRepo=${GITHUB_REPOSITORY#*/} \
+                --meta githubOrg=${GITHUB_REPOSITORY%/*}"
+
+          if [ "$IS_PRODUCTION" = "true" ]; then
+            url=$(vercel deploy --prebuilt --target=production $meta --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | tail -n1)
+          else
+            url=$(vercel deploy --prebuilt --target=preview $meta --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | tail -n1)
+          fi
+
+          # Take only the last line: the CLI can print extra output, and an
+          # empty or multi-line value would surface later as a confusing curl
+          # failure in the smoke test rather than here.
+          case "$url" in
+            https://*) ;;
+            *) echo "::error::vercel deploy did not return a deployment URL."; exit 1 ;;
+          esac
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "$url"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # Deployments sit behind Vercel Deployment Protection, which answers an
+      # unauthenticated request with a 302 to vercel.com/sso-api before the app
+      # is ever reached — so plain `curl` smoke-tests the login page, not the
+      # site. `vercel curl` authenticates with the same token used to deploy and
+      # handles the protection bypass itself.
+      #
+      # Turning Deployment Protection off would also make this pass, and would
+      # be the wrong trade: it would make every preview publicly readable.
+      - name: Smoke test the deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Optional. Vercel Project Settings -> Deployment Protection ->
+          # Protection Bypass for Automation generates this; add it as a
+          # repository secret to use the deterministic path below.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          url="${{ steps.deploy.outputs.url }}"
+
+          # Prints ONLY a 3-digit status code on stdout. Anything explanatory
+          # goes to stderr, because the caller captures stdout.
+          probe() {
+            path="$1"
+
+            # Preferred when configured: Vercel's Protection Bypass for
+            # Automation. This is plain curl against a documented header — no
+            # CLI output to parse and nothing in beta.
+            if [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+              curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
+                --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+                "$url$path" || printf '000'
+              return
+            fi
+
+            # Otherwise authenticate through the CLI, using VERCEL_TOKEN and
+            # VERCEL_ORG_ID from the environment rather than --token/--scope
+            # flags. `vercel curl` forwards unrecognised arguments to curl, so
+            # a `--token=...` placed here was handed to curl ("option --token:
+            # is unknown") and the request never ran — which is what produced
+            # an empty status. The env vars are read automatically.
+            response=$(vercel curl "$url$path" --yes \
+              -- --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
+              2>&1)
+
+            # Match a whole line of exactly three digits: curl writes the code
+            # on its own line, while CLI banners and notices do not. Extraction
+            # is kept separate from the fallback because `| tail -n1` always
+            # exits 0 — a trailing `|| echo 000` on the pipeline would never
+            # fire, which is what produced an empty status earlier.
+            code=$(printf '%s\n' "$response" | tr -d '\r' | grep -oE '^[0-9]{3}$' | tail -n1)
+
+            if [ -z "$code" ]; then
+              # No status code means the request never completed. Show why,
+              # rather than reporting a bare failure with no explanation.
+              echo "::warning::Could not read a status code from 'vercel curl'. Raw output:" >&2
+              printf '%s\n' "$response" | sed 's/^/    /' >&2
+              code="000"
+            fi
+
+            printf '%s' "$code"
+          }
+
+          # A fresh deployment can take a few seconds to become reachable.
+          for attempt in 1 2 3 4 5; do
+            code=$(probe /) || code=000
+            if [ "$code" = "200" ]; then
+              echo "Home page returned 200."
+              break
+            fi
+            if [ "$attempt" = "5" ]; then
+              echo "::error::Home page returned $code after 5 attempts at $url"
+              exit 1
+            fi
+            echo "Attempt $attempt returned $code; retrying in 10s."
+            sleep 10
+          done
+
+          # /shop reads from the database, so a 200 here also confirms the
+          # deployment's DATABASE_URL works at runtime — which `vercel build`
+          # cannot verify, since the value is a Sensitive variable and is only
+          # available to the running deployment.
+          shop=$(probe /shop)
+          echo "/shop returned $shop"
+          [ "$shop" = "200" ] || { echo "::error::/shop returned $shop"; exit 1; }
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${{ github.ref_name == 'main' && 'Production' || 'Preview' }} deployment"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| URL | ${{ steps.deploy.outputs.url }} |"
+            echo "| Branch | \`${{ github.ref_name }}\` |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

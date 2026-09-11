@@ -1,0 +1,19 @@
+{
+  "/images/hero/hero-couple.png": "data:image/webp;base64,UklGRqAAAABXRUJQVlA4IJQAAABwBACdASoQABQAPt1apkyopSOiMAgBEBuJZwDG9YvW1f+oqxjrxi9WgleIAAD+8eCp9N1sUUL9HvotJpQGJVblYdqulMK1wC2HoCMOUx4RdT8EzSN3sVBz/MxrOblxG+7YY4pHJ5ss2FdFE2l9BLvwy0DwZ9TF734/7/A4KNBNA1xmRai3baxpkEbV2IGYJjPKnuAA",
+  "/images/products/black-striped-t-shirt.png": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAAAQAgCdASoQABAAAwBSJaQAD4hOlCEI4aPAAP736nH2ouM32y9Rz5Gir/1vbzOX5IDqDH0P7S8BkJzrjTVbN4a91ybeK2haO/ijq5QXlKnthkvny4AAAA==",
+  "/images/products/checkered-shirt.png": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAAAQAgCdASoQABAAAwBSJZQAApMojjfToOqAAP738B+U0F0LxO3cx+PmlCF+JInWKliG/AGR6KfdYIXZAZemIly61alRLA9PbI+t7wDvy0l8o63D9bXHoW0EW8XaMAAA",
+  "/images/products/courage-graphic-t-shirt.png": "data:image/webp;base64,UklGRoIAAABXRUJQVlA4IHYAAAAwAgCdASoQABAAAwBSJbACdFQAAzAzHCQAAAD+9/ANn3MQ163kwg8KgRSYtpP/vE0gIw1KG/6bttdl/lXnhrpMZ5uttRx2qZSlrJ4cyaiBrEi9q6tYn3kDJ0x6/KayNV5rF7fLObSPFnP30NdB37jvO5VPjAAA",
+  "/images/products/faded-skinny-jeans.png": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAABwAgCdASoQABAAAwBSJaQAD46fChjd/3StXeAAAP738BrWuiCIVS7TN6I4lRan1a9f0mf0VGItGpkco4N6GT22xoUDnGz2U1UCqvMXuO+fXTtJC9wKb8w6IqYZI7iAAAA=",
+  "/images/products/gradient-graphic-t-shirt.png": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADwAQCdASoQABAAAwBSJZwAAueI8N4+mAAA/vfwelSrzI3wWzkHkUYSOEXiHT7rbzcL3Bz5xE+aaPegAAA=",
+  "/images/products/loose-fit-bermuda-shorts.png": "data:image/webp;base64,UklGRkwAAABXRUJQVlA4IEAAAADwAQCdASoQABAAAwBSJZwAAujcXqC8coAA/vfp6C6oG5fzO2puOvaqsX4mmCTU5liXtDv/l65hN60aWy9KiEAA",
+  "/images/products/one-life-graphic-t-shirt.png": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAAAQAgCdASoQABAAAwBSJZQBTAA2CihpoxXgAP737+g8ha+ZTNF6u4bZczcZxxdjHtN3OJXzPf/fHGFSgedcOvM1KwITErrSKz/n4i2XI//vaWuOxmAAAA==",
+  "/images/products/polo-with-contrast-trims.png": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAACQAgCdASoQABAAAwBSJZgCdFQAFO8ZZXWoQR8QAAD+9+yz+xppSqunE+5yVhpg3l5++mtasO61m3pveYYdBl+HnuMS2vHrsC5QegD7gnAJPvbk+B14zCz6pVfKA6F3vELCkiao2gGO0+cwAAA=",
+  "/images/products/polo-with-tipping-details.png": "data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAAAQAgCdASoQABAAAwBSJZQAAsQcfFFI+3wAAP738OsVCOX6x1ixSzWtYK//lO2sgM4QzEuE9b5C6TJnIMs9Q+IW62ZtrjD/Qt3uGY/c+0oV7HbN34bA6HoZXKAAAA==",
+  "/images/products/relaxed-fit-twill-utility-shorts.png": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAAAQAgCdASoQABAAAwBSJYwCdAEPSi+aiCdgAP7yjUuPVMyhesj2Q9qW9oEP3jr6Bj7ZmbJWPmcFf8fCjzrAaib3UcT8i15ht043ucqhg00sNg52louMaoRk1TKJp8AA",
+  "/images/products/skinny-fit-jeans.png": "data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAAAQAgCdASoQABAAAwBSJZQCdAEXtMUp10rMAP738A27uGtGs8lm8rxuI9i4yuNquh/zRg8jCNQUQXf9zjaAa7ciSRBeYs9I9FqtPB+0b9dFVXAzd5/j53KcN9AAAA==",
+  "/images/products/sleeve-striped-t-shirt.png": "data:image/webp;base64,UklGRoIAAABXRUJQVlA4IHYAAACwAgCdASoQABAAAwBSJbACdFQA3AAvr7G1d/Yq3wAA/vfvh6sG72x76pdHZJADPDT3O/9KKScH1rBXAc/cha/C9M4i1qmeoUlD7TmauQlfdBTHeJKmat0HxHjslLoxjeH/qLcGo/KeY/LRERcn1pXohLB7jAAA",
+  "/images/products/t-shirt-with-tape-details.png": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAADwAQCdASoQABAAAwBSJaQAD4xuXiQyOQAA/vfxTMeIDZYF2E/RLIweGK2yzFcV8M1GTePh8uAMWcqIF5nB6dcnWo0N6jmyQFVqt/qcq5vrf07yt7ZVygNynTFlZEIAAAA=",
+  "/images/products/vertical-striped-shirt.png": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAADwAQCdASoQABAAAwBSJZwAAsQftdjTamgA/vfw6xUJOgE1KLEgQsJHv849uIqYp5g3sEhqeTt4BiBZyGZ9iUrX4Zzaez1sRuKJAIo8IAA=",
+  "/images/states/empty-cart.png": "data:image/webp;base64,UklGRkwAAABXRUJQVlA4IEAAAADwAQCdASoQAAwAAwBSJaQAAuddTsFu4AAA/vltQEG/YSR7UPPoUcMcdcAhRYyFhiwVFc3ZAzVpa4GOE2WncAAA",
+  "/images/states/not-found.png": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAADwAQCdASoQAAwAAwBSJaQAAuRuhzIzC0AA/voapvwNH0ohVeHGf3wRm/7sFHrpaCP+H+o0/2hD0GxKCHYEiknuJeYecvKPGAFkzWJSSw8p31X2S8Fm4AAA"
+}

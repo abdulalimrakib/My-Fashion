@@ -7,12 +7,282 @@ datasource db {
   provider = "postgresql"
 }
 
-// A small starter model. Replace or extend it when the application's data
-// requirements are defined.
+// ---------------------------------------------------------------------------
+// Accounts
+// ---------------------------------------------------------------------------
+
 model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  // scrypt digest, stored as "salt:hash" (hex). Null for accounts created
+  // before credentials existed; those accounts cannot sign in until they set one.
+  passwordHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions  Session[]
+  cartItems CartItem[]
+  wishlist  WishlistItem[]
+  orders    Order[]
+  reviews   Review[]
+}
+
+// Opaque bearer tokens. Only the SHA-256 digest is stored, so a database leak
+// does not hand out usable sessions.
+model Session {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue
+// ---------------------------------------------------------------------------
+
+model Category {
+  id       String @id @default(cuid())
+  slug     String @unique
+  name     String
+  position Int    @default(0)
+
+  products Product[]
+}
+
+model DressStyle {
+  id       String @id @default(cuid())
+  slug     String @unique
+  name     String
+  position Int    @default(0)
+
+  products Product[] @relation("ProductDressStyles")
+}
+
+model Color {
+  id       String @id @default(cuid())
+  slug     String @unique
+  name     String
+  hex      String
+  position Int    @default(0)
+
+  products  Product[]  @relation("ProductColors")
+  cartItems CartItem[]
+}
+
+model Size {
+  id       String @id @default(cuid())
+  slug     String @unique
+  name     String
+  position Int    @default(0)
+
+  products  Product[]  @relation("ProductSizes")
+  cartItems CartItem[]
+}
+
+model Product {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String
+
+  // Short blurb shown under the title; `details` is the long copy in the tabs.
+  description String
+  details     String
+
+  // Money is always integer cents. Never a float, and never Prisma `Decimal`,
+  // which cannot cross the server/client boundary without conversion.
+  priceCents          Int
+  compareAtPriceCents Int?
+
+  // Denormalised aggregates over `reviews`, recomputed whenever one is added.
+  rating      Float @default(0)
+  reviewCount Int   @default(0)
+
+  isNewArrival Boolean @default(false)
+  isTopSelling Boolean @default(false)
+
+  categoryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category Category       @relation(fields: [categoryId], references: [id])
+  images   ProductImage[]
+  styles   DressStyle[]   @relation("ProductDressStyles")
+  colors   Color[]        @relation("ProductColors")
+  sizes    Size[]         @relation("ProductSizes")
+  reviews  Review[]
+
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  orderItems    OrderItem[]
+
+  @@index([categoryId])
+  @@index([isNewArrival])
+  @@index([isTopSelling])
+  @@index([priceCents])
+}
+
+model ProductImage {
+  id           String @id @default(cuid())
+  productId    String
+  url          String
+  alt          String
+  // Tiny base64 WebP used as next/image `blurDataURL`.
+  blurDataUrl  String
+  width        Int
+  height       Int
+  position     Int    @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  productId  String
+  userId     String?
+  authorName String
+  rating     Int
+  body       String
+  createdAt  DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([userId])
+}
+
+// Homepage "Our Happy Customers" quotes. Kept separate from product reviews
+// because they are editorial content, not feedback on a specific product.
+model Testimonial {
+  id         String  @id @default(cuid())
+  authorName String
+  body       String
+  rating     Int     @default(5)
+  isVerified Boolean @default(true)
+  position   Int     @default(0)
+}
+
+// ---------------------------------------------------------------------------
+// Shopping
+// ---------------------------------------------------------------------------
+
+// `colorId` and `sizeId` are required: Postgres treats NULLs as distinct in a
+// unique index, so a nullable variant key would silently allow duplicate lines
+// for the same product. The purchase panel enforces a choice before adding.
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  colorId   String
+  sizeId    String
+  quantity  Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  color   Color   @relation(fields: [colorId], references: [id])
+  size    Size    @relation(fields: [sizeId], references: [id])
+
+  @@unique([userId, productId, colorId, sizeId])
+  @@index([userId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+model PromoCode {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  percentOff Int
+  isActive   Boolean   @default(true)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
+  userId      String
+  status      OrderStatus @default(PENDING)
+
+  email      String
+  fullName   String
+  phone      String
+  address1   String
+  address2   String?
+  city       String
+  postalCode String
+  country    String
+
+  subtotalCents Int
+  discountCents Int     @default(0)
+  shippingCents Int     @default(0)
+  totalCents    Int
+  promoCode     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items OrderItem[]
+
+  @@index([userId])
+}
+
+// Product details are copied in at purchase time so historical orders stay
+// accurate even if the catalogue is edited or an item is removed.
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  productId      String?
+  name           String
+  slug           String
+  imageUrl       String
+  colorName      String
+  sizeName       String
+  unitPriceCents Int
+  quantity       Int
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
 }
