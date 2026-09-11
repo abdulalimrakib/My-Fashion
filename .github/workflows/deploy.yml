@@ -106,8 +106,6 @@ jobs:
               -H "Authorization: Bearer $VERCEL_TOKEN" \
               --max-time 30 "https://api.vercel.com$1" || echo 000
           }
-          # Fingerprints only - enough to spot a truncated or stale secret
-          # without ever printing one.
           fingerprint() { printf '%s (%s chars, %s…%s)\n' "$1" "${#2}" "$(printf %.6s "$2")" "$(printf %s "$2" | tail -c 4)"; }
           fingerprint VERCEL_ORG_ID "$VERCEL_ORG_ID"
           fingerprint VERCEL_PROJECT_ID "$VERCEL_PROJECT_ID"
@@ -115,29 +113,25 @@ jobs:
 
           fail=0
 
-          # Mirrors getOrgById(). A 404 here is tolerated by the CLI; a 403 is not.
-          code=$(api "/v2/teams/$VERCEL_ORG_ID")
+          # Validate token against personal profile
+          code=$(api "/v2/user")
           case "$code" in
-            200) echo "Org access OK." ;;
-            403)
-              echo "::error::The token cannot read team $VERCEL_ORG_ID (HTTP 403). This is what makes 'vercel pull' fail even when the project itself is reachable: the CLI resolves the org and the project separately. Create a token at https://vercel.com/account/tokens with that team chosen in the Scope selector, and update the VERCEL_TOKEN secret."
-              fail=1 ;;
-            404) echo "Org lookup returned 404; the CLI tolerates this, continuing." ;;
+            200) echo "Personal Account Access OK." ;;
             401)
               echo "::error::VERCEL_TOKEN is invalid or expired (HTTP 401)."
               fail=1 ;;
-            *) echo "Org lookup returned HTTP $code." ;;
+            *) echo "User lookup returned HTTP $code." ;;
           esac
 
-          # Mirrors getProjectByNameOrId().
-          code=$(api "/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")
+          # Validate project access under personal scope
+          code=$(api "/v9/projects/$VERCEL_PROJECT_ID")
           case "$code" in
-            200) echo "Project access OK: $(node -e 'console.log(require(process.argv[1]).name??"?")' "$body" 2>/dev/null)" ;;
+            200) echo "Project access OK: $(node -e 'const fs=require("fs"); try{console.log(JSON.parse(fs.readFileSync(process.argv[1])).name)}catch{console.log("?")}' "$body" 2>/dev/null)" ;;
             403)
-              echo "::error::The token cannot access project $VERCEL_PROJECT_ID (HTTP 403). Scope the token to the team that owns it."
+              echo "::error::The token cannot access project $VERCEL_PROJECT_ID (HTTP 403)."
               fail=1 ;;
             404)
-              echo "::error::No project $VERCEL_PROJECT_ID under scope $VERCEL_ORG_ID (HTTP 404). Check the two ids belong to the same account - re-read them per docs/DEPLOYMENT.md."
+              echo "::error::No project $VERCEL_PROJECT_ID found under your personal account (HTTP 404)."
               fail=1 ;;
             *)
               echo "::error::Unexpected HTTP $code checking project access."
