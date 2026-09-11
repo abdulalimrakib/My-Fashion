@@ -179,21 +179,54 @@ jobs:
       - name: Smoke test the deployment
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Optional. Vercel Project Settings -> Deployment Protection ->
+          # Protection Bypass for Automation generates this; add it as a
+          # repository secret to use the deterministic path below.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           url="${{ steps.deploy.outputs.url }}"
 
+          # Prints ONLY a 3-digit status code on stdout. Anything explanatory
+          # goes to stderr, because the caller captures stdout.
           probe() {
-            response=$(vercel curl "$url$1" --yes \
-              --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" \
+            path="$1"
+
+            # Preferred when configured: Vercel's Protection Bypass for
+            # Automation. This is plain curl against a documented header — no
+            # CLI output to parse and nothing in beta.
+            if [ -n "$VERCEL_AUTOMATION_BYPASS_SECRET" ]; then
+              curl --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
+                --header "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+                "$url$path" || printf '000'
+              return
+            fi
+
+            # Otherwise authenticate through the CLI, using VERCEL_TOKEN and
+            # VERCEL_ORG_ID from the environment rather than --token/--scope
+            # flags. `vercel curl` forwards unrecognised arguments to curl, so
+            # a `--token=...` placed here was handed to curl ("option --token:
+            # is unknown") and the request never ran — which is what produced
+            # an empty status. The env vars are read automatically.
+            response=$(vercel curl "$url$path" --yes \
               -- --silent --output /dev/null --write-out '%{http_code}' --max-time 30 \
-            2>&1)
-            # Extract the 3-digit status code. `grep -o` returns EVERY match,
-            # and the CLI banner shares this output, so `tail -n1` keeps just
-            # the last one — otherwise a diagnostic line ending in three digits
-            # (a project id, a version) would make $code multi-line and fail
-            # every comparison below. `|| echo 000` covers no match at all,
-            # e.g. an invalid token.
-            echo "$response" | grep -oE '[0-9]{3}$' | tail -n1 || echo "000"
+              2>&1)
+
+            # Match a whole line of exactly three digits: curl writes the code
+            # on its own line, while CLI banners and notices do not. Extraction
+            # is kept separate from the fallback because `| tail -n1` always
+            # exits 0 — a trailing `|| echo 000` on the pipeline would never
+            # fire, which is what produced an empty status earlier.
+            code=$(printf '%s\n' "$response" | tr -d '\r' | grep -oE '^[0-9]{3}$' | tail -n1)
+
+            if [ -z "$code" ]; then
+              # No status code means the request never completed. Show why,
+              # rather than reporting a bare failure with no explanation.
+              echo "::warning::Could not read a status code from 'vercel curl'. Raw output:" >&2
+              printf '%s\n' "$response" | sed 's/^/    /' >&2
+              code="000"
+            fi
+
+            printf '%s' "$code"
           }
 
           # A fresh deployment can take a few seconds to become reachable.
