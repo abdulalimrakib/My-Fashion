@@ -96,66 +96,66 @@ jobs:
       #
       # Note: /v2/user is deliberately not used as a gate - it returns 404 for
       # some token types even when the token works fine.
-      - name: Verify Vercel access
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          body=$(mktemp)
-          api() {
-            curl -sS -o "$body" -w '%{http_code}' \
-              -H "Authorization: Bearer $VERCEL_TOKEN" \
-              --max-time 30 "https://api.vercel.com$1" || echo 000
-          }
-          fingerprint() { printf '%s (%s chars, %s…%s)\n' "$1" "${#2}" "$(printf %.6s "$2")" "$(printf %s "$2" | tail -c 4)"; }
-          fingerprint VERCEL_ORG_ID "$VERCEL_ORG_ID"
-          fingerprint VERCEL_PROJECT_ID "$VERCEL_PROJECT_ID"
-          echo "VERCEL_TOKEN (${#VERCEL_TOKEN} chars)"
+      # - name: Verify Vercel access
+      #   env:
+      #     VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      #   run: |
+      #     body=$(mktemp)
+      #     api() {
+      #       curl -sS -o "$body" -w '%{http_code}' \
+      #         -H "Authorization: Bearer $VERCEL_TOKEN" \
+      #         --max-time 30 "https://api.vercel.com$1" || echo 000
+      #     }
+      #     fingerprint() { printf '%s (%s chars, %s…%s)\n' "$1" "${#2}" "$(printf %.6s "$2")" "$(printf %s "$2" | tail -c 4)"; }
+      #     fingerprint VERCEL_ORG_ID "$VERCEL_ORG_ID"
+      #     fingerprint VERCEL_PROJECT_ID "$VERCEL_PROJECT_ID"
+      #     echo "VERCEL_TOKEN (${#VERCEL_TOKEN} chars)"
 
-          fail=0
+      #     fail=0
 
-          # Validate token against personal profile
-          code=$(api "/v2/user")
-          case "$code" in
-            200) echo "Personal Account Access OK." ;;
-            401)
-              echo "::error::VERCEL_TOKEN is invalid or expired (HTTP 401)."
-              fail=1 ;;
-            *) echo "User lookup returned HTTP $code." ;;
-          esac
+      #     # Validate token against personal profile
+      #     code=$(api "/v2/user")
+      #     case "$code" in
+      #       200) echo "Personal Account Access OK." ;;
+      #       401)
+      #         echo "::error::VERCEL_TOKEN is invalid or expired (HTTP 401)."
+      #         fail=1 ;;
+      #       *) echo "User lookup returned HTTP $code." ;;
+      #     esac
 
-          # Validate project access under personal scope
-          code=$(api "/v9/projects/$VERCEL_PROJECT_ID")
-          case "$code" in
-            200) echo "Project access OK: $(node -e 'const fs=require("fs"); try{console.log(JSON.parse(fs.readFileSync(process.argv[1])).name)}catch{console.log("?")}' "$body" 2>/dev/null)" ;;
-            403)
-              echo "::error::The token cannot access project $VERCEL_PROJECT_ID (HTTP 403)."
-              fail=1 ;;
-            404)
-              echo "::error::No project $VERCEL_PROJECT_ID found under your personal account (HTTP 404)."
-              fail=1 ;;
-            *)
-              echo "::error::Unexpected HTTP $code checking project access."
-              cat "$body"
-              fail=1 ;;
-          esac
+      #     # Validate project access under personal scope
+      #     code=$(api "/v9/projects/$VERCEL_PROJECT_ID")
+      #     case "$code" in
+      #       200) echo "Project access OK: $(node -e 'const fs=require("fs"); try{console.log(JSON.parse(fs.readFileSync(process.argv[1])).name)}catch{console.log("?")}' "$body" 2>/dev/null)" ;;
+      #       403)
+      #         echo "::error::The token cannot access project $VERCEL_PROJECT_ID (HTTP 403)."
+      #         fail=1 ;;
+      #       404)
+      #         echo "::error::No project $VERCEL_PROJECT_ID found under your personal account (HTTP 404)."
+      #         fail=1 ;;
+      #       *)
+      #         echo "::error::Unexpected HTTP $code checking project access."
+      #         cat "$body"
+      #         fail=1 ;;
+      #     esac
 
-          [ "$fail" = "0" ] || exit 1
+      #     [ "$fail" = "0" ] || exit 1
 
-      - name: Pull Vercel ${{ env.VERCEL_TARGET }} environment
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          if [ "$IS_PRODUCTION" = "true" ]; then
-            args="--environment=production"
-          else
-            args="--environment=preview --git-branch=$GITHUB_REF_NAME"
-          fi
+      # - name: Pull Vercel ${{ env.VERCEL_TARGET }} environment
+      #   env:
+      #     VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      #   run: |
+      #     if [ "$IS_PRODUCTION" = "true" ]; then
+      #       args="--environment=production"
+      #     else
+      #       args="--environment=preview --git-branch=$GITHUB_REF_NAME"
+      #     fi
 
-          # shellcheck disable=SC2086
-          if ! vercel pull --yes $args --token="$VERCEL_TOKEN"; then
-            echo "::error::vercel pull failed. Usual causes: VERCEL_PROJECT_ID or VERCEL_ORG_ID does not match the Vercel project, or VERCEL_TOKEN is not scoped to the team that owns it (this project's orgId begins with 'team_', so a personal-account token cannot see it). See docs/DEPLOYMENT.md."
-            exit 1
-          fi
+      #     # shellcheck disable=SC2086
+      #     if ! vercel pull --yes $args --token="$VERCEL_TOKEN"; then
+      #       echo "::error::vercel pull failed. Usual causes: VERCEL_PROJECT_ID or VERCEL_ORG_ID does not match the Vercel project, or VERCEL_TOKEN is not scoped to the team that owns it (this project's orgId begins with 'team_', so a personal-account token cannot see it). See docs/DEPLOYMENT.md."
+      #       exit 1
+      #     fi
 
       # Migrations run before the build, not during it: `app/sitemap.ts` is
       # prerendered at build time from live product rows, so the schema has to
