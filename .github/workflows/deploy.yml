@@ -149,10 +149,26 @@ jobs:
           # `vercel deploy` takes --target, NOT --environment. (--environment
           # is a `vercel pull` flag.) Passing it here made every preview deploy
           # fail on an unknown option.
+          #
+          # The --meta flags attach the git context by hand. Because
+          # vercel.json sets git.deploymentEnabled=false, Vercel's own Git
+          # integration does not run, and a bare `vercel deploy --prebuilt`
+          # uploads a build with no branch or commit attached — so the
+          # dashboard cannot tell which branch it came from and falls back to
+          # showing the project's production branch. These keys are the ones
+          # Vercel reads for GitHub, and they also restore the stable branch
+          # alias (my-fashion-git-staging-<scope>.vercel.app) alongside the
+          # unique deployment URL.
+          meta="--meta githubCommitRef=$GITHUB_REF_NAME \
+                --meta githubCommitSha=$GITHUB_SHA \
+                --meta githubCommitAuthorName=$GITHUB_ACTOR \
+                --meta githubRepo=${GITHUB_REPOSITORY#*/} \
+                --meta githubOrg=${GITHUB_REPOSITORY%/*}"
+
           if [ "$IS_PRODUCTION" = "true" ]; then
-            url=$(vercel deploy --prebuilt --target=production --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | tail -n1)
+            url=$(vercel deploy --prebuilt --target=production $meta --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | tail -n1)
           else
-            url=$(vercel deploy --prebuilt --target=preview --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | tail -n1)
+            url=$(vercel deploy --prebuilt --target=preview $meta --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | tail -n1)
           fi
 
           # Take only the last line: the CLI can print extra output, and an
