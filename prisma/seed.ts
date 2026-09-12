@@ -71,6 +71,7 @@ async function main() {
   const categoryId = bySlug(categories);
   const styleId = bySlug(styles);
   const colorId = bySlug(colors);
+  const colorName = new Map(colors.map((c) => [c.id, c.name]));
   const sizeId = bySlug(sizes);
 
   console.log(`Seeding ${PRODUCTS.length} products…`);
@@ -121,14 +122,12 @@ async function main() {
       update: {
         ...scalars,
         styles: { set: connectStyles },
-        colors: { set: connectColors },
         sizes: { set: connectSizes },
       },
       create: {
         slug: p.slug,
         ...scalars,
         styles: { connect: connectStyles },
-        colors: { connect: connectColors },
         sizes: { connect: connectSizes },
       },
     });
@@ -137,18 +136,38 @@ async function main() {
     const blurDataUrl = blurPlaceholders[url];
     if (!blurDataUrl) throw new Error(`No blur placeholder generated for ${url}`);
 
-    await prisma.productImage.deleteMany({ where: { productId: product.id } });
-    await prisma.productImage.create({
-      data: {
-        productId: product.id,
-        url,
-        alt: `${p.name} — product photograph on a plain background`,
-        blurDataUrl,
-        width: PRODUCT_IMAGE_SIZE,
-        height: PRODUCT_IMAGE_SIZE,
-        position: 0,
-      },
+    // One colour variant per listed colour, each owning its own image row.
+    //
+    // The shop.co asset set ships a single cut-out per garment, so every
+    // variant here points at the same file. That is a limitation of the seed
+    // photography, not of the model: an administrator replaces any one of them
+    // with a real photograph of that colour from `/admin/products`.
+    await prisma.productVariant.deleteMany({
+      where: { productId: product.id, colorId: { notIn: connectColors.map((c) => c.id) } },
     });
+    await prisma.productImage.deleteMany({ where: { productId: product.id } });
+
+    for (const [index, color] of connectColors.entries()) {
+      const variant = await prisma.productVariant.upsert({
+        where: { productId_colorId: { productId: product.id, colorId: color.id } },
+        update: { position: index },
+        create: { productId: product.id, colorId: color.id, position: index },
+        select: { id: true },
+      });
+
+      await prisma.productImage.create({
+        data: {
+          productId: product.id,
+          variantId: variant.id,
+          url,
+          alt: `${p.name} in ${colorName.get(color.id) ?? "colour"} — product photograph on a plain background`,
+          blurDataUrl,
+          width: PRODUCT_IMAGE_SIZE,
+          height: PRODUCT_IMAGE_SIZE,
+          position: index * 100,
+        },
+      });
+    }
 
     await prisma.review.deleteMany({ where: { productId: product.id, userId: null } });
     await prisma.review.createMany({

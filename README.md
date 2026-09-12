@@ -47,6 +47,71 @@ const users = await prisma.user.findMany();
 - `app/generated/prisma/` is type-safe Prisma code generated from the schema. Do not edit it by hand.
 - The `db:generate`, `db:migrate`, and `db:studio` scripts in `package.json` generate that code, change the database structure, and open Prisma's database viewer.
 
+## Catalogue administration
+
+Products are added by hand at `/admin/products`, which is only reachable by an
+administrator.
+
+### Getting in
+
+Set `ROOT_ADMIN_EMAIL` in `.env.local` (and in the deployment's environment) to
+the address that should always have access:
+
+```bash
+ROOT_ADMIN_EMAIL="you@example.com"
+```
+
+Register that email in the app as a normal account and sign in — it is an
+administrator immediately, with nothing to run and nothing to remember. The
+answer is derived from the variable on every request rather than stored, so a
+bad database write, a restored backup, or another admin cannot lock you out.
+
+> Register it **before** deploying anywhere public. Sign-up is open and email
+> addresses are not verified, so whoever registers an address first owns it.
+
+### Adding other administrators
+
+Signed in as a root administrator, `/admin/users` lists every account and grants
+or revokes catalogue access with one button. Ordinary administrators can edit
+the catalogue but not this list — they get the same 404 a shopper does. A root
+administrator cannot be demoted from the UI, because their access comes from the
+environment; change `ROOT_ADMIN_EMAIL` instead.
+
+There is a CLI fallback for when `ROOT_ADMIN_EMAIL` is unset or its account has
+not been registered yet:
+
+```bash
+npm run admin:grant -- someone@example.com
+# and to take it away again
+npm run admin:grant -- someone@example.com --revoke
+```
+
+A product is created in three steps: the shared information (name, description,
+category, price, sizes), then one colour variant per colourway, each with its
+own photograph, then a review screen. The shared copy is stored once on
+`Product`; each colour is a `ProductVariant` row that owns its `ProductImage`
+rows, so nothing is duplicated per colour and the storefront can swap the
+photograph when a shopper picks a swatch.
+
+### Uploaded images
+
+Admin uploads are stored as rows in `ImageAsset` and served by
+`app/api/images/[id]`. They are not written to `public/`, because the
+application runs on Vercel, where the filesystem is read-only at runtime and no
+object store is provisioned. `lib/images.ts` holds the limits (type, size and
+minimum dimensions) and reads the real format out of the file's own bytes rather
+than trusting the browser's reported type.
+
+## Tests
+
+```bash
+npm test
+```
+
+Node's built-in test runner, run through `tsx`. The tests in `tests/` that touch
+the database use the `DATABASE_URL` from `.env.local` and skip themselves when
+it is unset; they create and remove their own rows.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

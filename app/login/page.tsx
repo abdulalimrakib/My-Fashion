@@ -19,6 +19,7 @@ const REASONS: Record<string, string> = {
   checkout: "Sign in to complete your order.",
   review: "Sign in to write a review.",
   account: "Sign in to view your account.",
+  admin: "Sign in with an administrator account to manage the catalogue.",
 };
 
 export default async function LoginPage(props: PageProps<"/login">) {

@@ -7,32 +7,29 @@ import { toggleWishlist } from "@/lib/actions/wishlist";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, HeartIcon } from "@/components/ui/icons";
 import { emptyFormState } from "@/lib/validation";
+import { useVariantSelection } from "@/components/product/variant-selection";
 import { cn } from "@/lib/cn";
 
-type Color = { id: string; slug: string; name: string; hex: string };
 type Size = { id: string; slug: string; name: string };
 
 type Props = {
   productId: string;
-  colors: Color[];
   sizes: Size[];
   returnTo: string;
   initiallyWishlisted: boolean;
 };
 
 /**
- * Owns the variant selection for a product. A colour and a size are both
- * required before the item can be added, which matches the reference UX and
- * keeps `CartItem`'s composite unique key non-nullable.
+ * The purchase controls for a product. A colour and a size are both required
+ * before the item can be added, which matches the reference UX and keeps
+ * `CartItem`'s composite unique key non-nullable.
+ *
+ * The colour lives in `VariantSelectionProvider` rather than here, because the
+ * photographs above have to change with it.
  */
-export function PurchasePanel({
-  productId,
-  colors,
-  sizes,
-  returnTo,
-  initiallyWishlisted,
-}: Props) {
-  const [colorId, setColorId] = useState(colors[0]?.id ?? "");
+export function PurchasePanel({ productId, sizes, returnTo, initiallyWishlisted }: Props) {
+  const { variants, selected, selectVariant } = useVariantSelection();
+  const colorId = selected?.color.id ?? "";
   const [sizeId, setSizeId] = useState(sizes[0]?.id ?? "");
   const [quantity, setQuantity] = useState(1);
   const [wishlisted, setWishlisted] = useState(initiallyWishlisted);
@@ -46,36 +43,42 @@ export function PurchasePanel({
 
   return (
     <div className="space-y-6">
-      {colors.length > 0 ? (
+      {variants.length > 0 ? (
         <div className="space-y-3 border-t border-line pt-6">
           <p id={colorLabelId} className="text-sm text-ink-muted">
             Select Colors
+            {selected ? (
+              // Named as well as ticked: a swatch alone leaves the choice
+              // ambiguous for anyone who cannot separate two similar colours.
+              <span className="ml-1 font-medium text-ink">— {selected.color.name}</span>
+            ) : null}
           </p>
           <div role="radiogroup" aria-labelledby={colorLabelId} className="flex flex-wrap gap-3">
-            {colors.map((color) => {
-              const selected = color.id === colorId;
+            {variants.map((variant) => {
+              const isSelected = variant.id === selected?.id;
               return (
                 <button
-                  key={color.id}
+                  key={variant.id}
                   type="button"
                   role="radio"
-                  aria-checked={selected}
-                  aria-label={color.name}
-                  onClick={() => setColorId(color.id)}
-                  style={{ backgroundColor: color.hex }}
+                  aria-checked={isSelected}
+                  aria-label={variant.color.name}
+                  title={variant.color.name}
+                  onClick={() => selectVariant(variant.id)}
+                  style={{ backgroundColor: variant.color.hex }}
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-inset ring-line-strong",
-                    selected && "ring-2 ring-ink",
+                    isSelected && "ring-2 ring-ink",
                   )}
                 >
-                  {selected ? (
+                  {isSelected ? (
                     <CheckIcon
                       className={cn(
                         "h-5 w-5",
                         // The tick sits on the swatch's own colour, which comes
                         // from the database and never follows the theme, so
                         // these two stay literal rather than tokenised.
-                        color.slug === "white" || color.slug === "yellow"
+                        variant.color.slug === "white" || variant.color.slug === "yellow"
                           ? "text-black"
                           : "text-white",
                       )}

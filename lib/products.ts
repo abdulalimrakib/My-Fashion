@@ -33,12 +33,28 @@ const detailSelect = {
     orderBy: { position: "asc" },
     select: { id: true, url: true, alt: true, blurDataUrl: true, width: true, height: true },
   },
-  colors: { orderBy: { position: "asc" }, select: { id: true, slug: true, name: true, hex: true } },
+  // The colourways, each with the photographs taken of it. This is the only
+  // place the storefront learns which colours a product comes in — there is no
+  // second list on `Product` to fall out of step with it.
+  variants: {
+    orderBy: { position: "asc" },
+    select: {
+      id: true,
+      color: { select: { id: true, slug: true, name: true, hex: true } },
+      images: {
+        orderBy: { position: "asc" },
+        select: { id: true, url: true, alt: true, blurDataUrl: true, width: true, height: true },
+      },
+    },
+  },
   sizes: { orderBy: { position: "asc" }, select: { id: true, slug: true, name: true } },
   styles: { orderBy: { position: "asc" }, select: { slug: true, name: true } },
 } satisfies Prisma.ProductSelect;
 
 export type ProductDetail = Prisma.ProductGetPayload<{ select: typeof detailSelect }>;
+
+/** One colourway of a product, as the product page renders it. */
+export type ProductVariantDetail = ProductDetail["variants"][number];
 
 /**
  * Collections are derived rather than stored: "on sale" is simply every product
@@ -66,7 +82,9 @@ function buildWhere(
   if (collection) Object.assign(where, collectionWhere(collection));
   if (filters.categories.length) where.category = { slug: { in: filters.categories } };
   if (filters.styles.length) where.styles = { some: { slug: { in: filters.styles } } };
-  if (filters.colors.length) where.colors = { some: { slug: { in: filters.colors } } };
+  if (filters.colors.length) {
+    where.variants = { some: { color: { slug: { in: filters.colors } } } };
+  }
   if (filters.sizes.length) where.sizes = { some: { slug: { in: filters.sizes } } };
 
   if (filters.q) {

@@ -39,7 +39,7 @@ export async function addToCart(_prev: FormState, data: FormData): Promise<FormS
   const product = await prisma.product.findFirst({
     where: {
       id: productId,
-      colors: { some: { id: colorId } },
+      variants: { some: { colorId } },
       sizes: { some: { id: sizeId } },
     },
     select: { id: true, name: true },

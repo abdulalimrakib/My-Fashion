@@ -10,6 +10,22 @@ export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cn(inputClasses, className)} {...props} />;
 }
 
+/** Multi-line copy. Rounded like a card rather than a pill, which only reads
+ *  correctly on a single line. */
+export const textareaClasses =
+  "w-full rounded-2xl bg-surface-muted px-4 py-3 text-sm text-ink " +
+  "placeholder:text-ink-subtle outline-none";
+
+export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
+  return <textarea className={cn(textareaClasses, className)} {...props} />;
+}
+
+export const selectClasses = cn(inputClasses, "appearance-none pr-10");
+
+export function Select({ className, ...props }: ComponentProps<"select">) {
+  return <select className={cn(selectClasses, className)} {...props} />;
+}
+
 type FieldProps = {
   label: string;
   htmlFor: string;

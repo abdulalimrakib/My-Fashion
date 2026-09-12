@@ -83,6 +83,17 @@ export function AccountMenu({ user }: { user: SessionUser | null }) {
           >
             Wishlist
           </Link>
+          {/* Hiding this is a convenience, not the control: `/admin` checks the
+              session for itself, as do the actions behind it. */}
+          {user.isAdmin ? (
+            <Link
+              role="menuitem"
+              href="/admin/products"
+              className="block border-t border-line px-4 py-2.5 text-sm font-medium hover:bg-surface-muted"
+            >
+              Manage products
+            </Link>
+          ) : null}
           <form action={signOut}>
             <button
               role="menuitem"

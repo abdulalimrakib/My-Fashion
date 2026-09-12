@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { ProductGallery } from "@/components/product/product-gallery";
 import { ProductTabs } from "@/components/product/product-tabs";
 import { PurchasePanel } from "@/components/product/purchase-panel";
+import { VariantGallery } from "@/components/product/variant-gallery";
+import { VariantSelectionProvider } from "@/components/product/variant-selection";
 import { ReviewForm } from "@/components/product/review-form";
 import { ReviewList } from "@/components/product/review-list";
 import { ProductCard } from "@/components/product/product-card";
@@ -107,30 +108,34 @@ export default async function ProductPage(props: PageProps<"/product/[slug]">) {
         ]}
       />
 
-      <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
-        <ProductGallery images={product.images} name={product.name} />
+      {/* The photographs and the colour swatches sit in opposite columns but
+          share one selection, so both are inside the provider. Everything
+          between them stays server-rendered. */}
+      <VariantSelectionProvider variants={product.variants}>
+        <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
+          <VariantGallery name={product.name} />
 
-        <div className="space-y-5">
-          <h1 className="font-display text-2xl uppercase leading-tight sm:text-3xl lg:text-4xl">
-            {product.name}
-          </h1>
-          <StarRating value={product.rating} size="md" />
-          <PriceTag
-            priceCents={product.priceCents}
-            compareAtPriceCents={product.compareAtPriceCents}
-            size="lg"
-          />
-          <p className="text-sm leading-relaxed text-ink-muted">{product.description}</p>
+          <div className="space-y-5">
+            <h1 className="font-display text-2xl uppercase leading-tight sm:text-3xl lg:text-4xl">
+              {product.name}
+            </h1>
+            <StarRating value={product.rating} size="md" />
+            <PriceTag
+              priceCents={product.priceCents}
+              compareAtPriceCents={product.compareAtPriceCents}
+              size="lg"
+            />
+            <p className="text-sm leading-relaxed text-ink-muted">{product.description}</p>
 
-          <PurchasePanel
-            productId={product.id}
-            colors={product.colors}
-            sizes={product.sizes}
-            returnTo={returnTo}
-            initiallyWishlisted={wishlisted}
-          />
+            <PurchasePanel
+              productId={product.id}
+              sizes={product.sizes}
+              returnTo={returnTo}
+              initiallyWishlisted={wishlisted}
+            />
+          </div>
         </div>
-      </div>
+      </VariantSelectionProvider>
 
       <div className="mt-12 sm:mt-16">
         <ProductTabs
@@ -152,6 +157,12 @@ export default async function ProductPage(props: PageProps<"/product/[slug]">) {
                       <dt className="text-ink-muted">Dress style</dt>
                       <dd className="font-medium">
                         {product.styles.map((style) => style.name).join(", ") || "—"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4 border-b border-line pb-3">
+                      <dt className="text-ink-muted">Colours</dt>
+                      <dd className="font-medium">
+                        {product.variants.map((variant) => variant.color.name).join(", ") || "—"}
                       </dd>
                     </div>
                     <div className="flex justify-between gap-4 border-b border-line pb-3">

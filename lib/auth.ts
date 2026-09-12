@@ -1,10 +1,11 @@
 import { randomBytes, scrypt, timingSafeEqual, createHash } from "node:crypto";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { prisma } from "@/lib/prisma";
+import { isRootAdminEmail } from "@/lib/admin/roles";
 import { SESSION_COOKIE, SESSION_DURATION_DAYS } from "@/lib/constants";
 
 const scryptAsync = promisify(scrypt) as (
@@ -70,7 +71,15 @@ export async function destroySession(): Promise<void> {
   store.delete(SESSION_COOKIE);
 }
 
-export type SessionUser = { id: string; email: string; name: string | null };
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  /** True for the `isAdmin` column *or* a configured root administrator. */
+  isAdmin: boolean;
+  /** Named by `ROOT_ADMIN_EMAIL`; may also grant administration to others. */
+  isRootAdmin: boolean;
+};
 
 /**
  * Deduplicated per request, so a layout and several nested components can each
@@ -85,12 +94,16 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     where: { tokenHash: digest(token) },
     select: {
       expiresAt: true,
-      user: { select: { id: true, email: true, name: true } },
+      user: { select: { id: true, email: true, name: true, isAdmin: true } },
     },
   });
 
   if (!session || session.expiresAt < new Date()) return null;
-  return session.user;
+
+  // A root administrator's access is derived from their email every time it is
+  // asked for, so it survives the column being wrong.
+  const isRootAdmin = isRootAdminEmail(session.user.email);
+  return { ...session.user, isRootAdmin, isAdmin: session.user.isAdmin || isRootAdmin };
 });
 
 /**
@@ -113,5 +126,47 @@ export async function requireUserOrRedirect(
 ): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(next)}&reason=${reason}`);
+  return user;
+}
+
+/**
+ * Mutation-level guard for the catalogue. Returns null rather than throwing so
+ * an action can answer with a `FormState` the admin form can render.
+ */
+export async function requireAdmin(): Promise<SessionUser | null> {
+  const user = await getCurrentUser();
+  return user?.isAdmin ? user : null;
+}
+
+/**
+ * Page-level guard for `/admin`, called by each admin page for the same reason
+ * `requireUserOrRedirect` is: a layout redirect does not stop its page running.
+ *
+ * A signed-out visitor is sent to sign in; a signed-in shopper who is not an
+ * administrator gets a 404 rather than a "forbidden", so the admin area does
+ * not advertise its own existence to people who cannot use it.
+ */
+export async function requireAdminOrRedirect(next: string): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect(`/login?next=${encodeURIComponent(next)}&reason=admin`);
+  if (!user.isAdmin) notFound();
+  return user;
+}
+
+/** Mutation-level guard for changing who is an administrator. */
+export async function requireRootAdmin(): Promise<SessionUser | null> {
+  const user = await getCurrentUser();
+  return user?.isRootAdmin ? user : null;
+}
+
+/**
+ * Page-level guard for `/admin/users`. An ordinary administrator gets the same
+ * 404 an ordinary shopper does: they can edit the catalogue, but who holds the
+ * keys is not theirs to change.
+ */
+export async function requireRootAdminOrRedirect(next: string): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect(`/login?next=${encodeURIComponent(next)}&reason=admin`);
+  if (!user.isRootAdmin) notFound();
   return user;
 }
